@@ -2,14 +2,12 @@ from config import get_config
 import requests
 import os
 
-URL = 'https://mangaqq.com/'
-
-def construct_url(manga_id, chapter, img):
-    img_url = f'{URL}/{manga_id}/{chapter}/{img}.jpg'
+def construct_url(manga_id, chapter, img, url):
+    img_url = f'{url}/{manga_id}/{chapter}/{img}.jpg'
     return img_url
 
-def download_image(manga_id, chapter, img, out_folder):
-    img_url = construct_url(manga_id, chapter, img)
+def download_image(manga_id, chapter, img, out_folder, url):
+    img_url = construct_url(manga_id, chapter, img, url)
 
     response = requests.get(img_url)
     
@@ -30,6 +28,7 @@ def main():
     cs, ce = config.cs, config.ce
     manga_id = config.manga_id
     OUT_FOLDER = f'{config.fold}/{config.lang}'
+    URL = config.main_url
 
     for chapter in range(cs, ce):
         s = 0
@@ -39,7 +38,7 @@ def main():
             print(e)
             
         for img in range(2, 50):
-            s += download_image(manga_id, chapter, img, OUT_FOLDER)
+            s += download_image(manga_id, chapter, img, OUT_FOLDER, URL)
             if s == 3:
                 break        
 
