@@ -1,60 +1,116 @@
 import xml.etree.ElementTree as ET
+import os
+import shutil
+from config import get_config
+
+BASE_PATH_ANNOTATION = r"D:\Project\Manga109\Manga109_released_2023_12_07\annotations.v2020.12.18"
+BASE_PATH = r"D:\Project\Manga109\Manga109_released_2023_12_07"
+
+def create_folder(manga_name, base_path, folder_type):
+    folder_path = f"{base_path}\\{folder_type}\\{manga_name}"
+    
+    try:
+        os.makedirs(folder_path, exist_ok=True)
+    except Exception as e:
+        print(e)
+
+    return folder_path
 
 def read_xml(manga_name):
-    base_path = r"D:\Project\Manga109\Manga109_released_2023_12_07\annotations.v2020.12.18"
-    file_path = f"{base_path}\\{manga_name}.xml"
+    file_path = f"{BASE_PATH_ANNOTATION}\\{manga_name}.xml"
 
     with open(file_path, encoding='utf-8') as f:
         xml_data = f.read()
 
     return xml_data
 
-xml_data = '''<page index="79" width="1654" height="1170">
-<text id="0007c82d" xmin="1153" ymin="761" xmax="1223" ymax="814">俺はひとりなんだ</text>
-<frame id="0007c82e" xmin="10" ymin="762" xmax="814" ymax="1163"/>
-<!-- More elements... -->
-</page>'''
+def save_annotation(manga_name, page, annotation):
+    folder_path = create_folder(manga_name, BASE_PATH, 'labels')
 
-# Parse the XML data
-root = ET.fromstring(xml_data)
+    file_path = f"{folder_path}\\{format_page(page)}.txt"
+    with open(file_path, "w") as f:
+        f.write("\n".join(annotation))
 
-# Get image width and height
-image_width = float(root.attrib['width'])
-image_height = float(root.attrib['height'])
+def annotation(data, img_width, img_height, class_id, class_name):
+    annotations = []
+    
+    for obj in data.findall(class_name):
+        xmin = float(obj.attrib['xmin'])
+        ymin = float(obj.attrib['ymin'])
+        xmax = float(obj.attrib['xmax'])
+        ymax = float(obj.attrib['ymax'])
 
-# Prepare list to store YOLO format annotations
-yolo_annotations = []
+        x_center = (xmin + xmax) / 2 / img_width
+        y_center = (ymin + ymax) / 2 / img_height
+        box_width = (xmax - xmin) / img_width
+        box_height = (ymax - ymin) / img_height
 
-# Iterate over all 'text' elements
-for text in root.findall('text'):
-    class_id = 0  # Class ID for text boxes
-    xmin = float(text.attrib['xmin'])
-    ymin = float(text.attrib['ymin'])
-    xmax = float(text.attrib['xmax'])
-    ymax = float(text.attrib['ymax'])
+        row = f"{class_id} {x_center:.6f} {y_center:.6f} {box_width:.6f} {box_height:.6f}"
+        annotations.append(row)
 
-    # Convert to YOLO format
-    x_center = (xmin + xmax) / 2 / image_width
-    y_center = (ymin + ymax) / 2 / image_height
-    box_width = (xmax - xmin) / image_width
-    box_height = (ymax - ymin) / image_height
+    return annotations
 
-    # Create a YOLO annotation line
-    annotation = f"{class_id} {x_center:.6f} {y_center:.6f} {box_width:.6f} {box_height:.6f}"
-    yolo_annotations.append(annotation)
+def format_page(page):
+    if len(page) == 1:
+        return f'00{str(page)}'
+    elif len(page) == 2:
+        return f'0{str(page)}'
+    else:
+        return str(page)
 
-# Save annotations to a .txt file
-output_file = "image_79.txt"
-with open(output_file, "w") as f:
-    f.write("\n".join(yolo_annotations))
+def remove_no_labels(manga_name, no_label: list[int]):
+    if len(no_label) == 0:
+        return
+    
+    folder_path = f"{BASE_PATH}\\images\\{manga_name}"
+    folder_path_dest = create_folder(manga_name, BASE_PATH,'images_no_labels')
+    
+    for page in no_label:
+        try:
+            shutil.move(f"{folder_path}\\{format_page(page)}.jpg", f"{folder_path_dest}\\{format_page(page)}.jpg")
+        except:
+            continue
+        
+def process(xml_data, manga_name):
+    root = ET.fromstring(xml_data)
+    pages = root.find('pages')
 
-print(f"YOLO annotations saved to {output_file}")
+    nothing = []
 
-def process(xml):
-    pass
+    for page in pages:
+        img_width = float(page.attrib['width'])
+        img_height = float(page.attrib['height'])
+        page_number = page.attrib['index']
+
+        yolo_annotations = []
+
+        text = annotation(page, img_width, img_height, 0, 'text')
+        frame = annotation(page, img_width, img_height, 1, 'frame')
+
+        yolo_annotations += text
+        yolo_annotations += frame
+
+        if (len(yolo_annotations) == 0):
+            nothing.append(page_number)
+        else:
+            save_annotation(manga_name, page_number, yolo_annotations)
+
+    remove_no_labels(manga_name, nothing)  
+
+def all_in_one():
+    manga_list = os.listdir(f'{BASE_PATH}\\images')
+    for manga in manga_list:
+        xml_data = read_xml(manga)
+        process(xml_data, manga)
 
 def main():
-    pass
+    config = get_config()
+
+    if config.mode == 'all':
+        all_in_one()
+    else:
+        xml_data = read_xml(config.manga_name)
+        process(xml_data, config.manga_name)
 
 if __name__ == '__main__':
     main()
