@@ -1,0 +1,9 @@
+names:
+- text
+- frame
+
+nc: 2
+
+train: place_holder
+val: place_holder
+test: place_holder

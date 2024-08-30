@@ -11,6 +11,9 @@ def get_config():
     parser.add_argument('--ce', type=int, default=20)
     parser.add_argument('--lang', type=str, default='vie')
     parser.add_argument('--fold', type=str, default='Hanayome')
+    parser.add_argument('--train', type=float, default=0.7)
+    parser.add_argument('--val', type=float, default=0.2)
+    parser.add_argument('--test', type=float, default=0.1)
 
     args = parser.parse_args()
 
